@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/database_service.dart';
+import 'barcode_scanner_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -16,6 +17,16 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final stockController = TextEditingController();
 
   final DatabaseService _db = DatabaseService();
+
+  Future<void> _scanBarcode() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+    if (result != null && result.isNotEmpty) {
+      skuController.text = result;
+    }
+  }
 
   Future<void> _submitData() async {
     if (_formKey.currentState!.validate()) {
@@ -52,8 +63,13 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               TextFormField(
                 controller: skuController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: "Mã SKU / Barcode",
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'Quét barcode',
+                    onPressed: _scanBarcode,
+                  ),
                 ),
                 validator: (val) => val!.isEmpty ? "Vui lòng nhập SKU" : null,
               ),
