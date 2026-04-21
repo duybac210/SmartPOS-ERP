@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "515468558659",
+    "project_id": "smartpos-erp-9e617",
+    "storage_bucket": "smartpos-erp-9e617.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:515468558659:android:22d06027d207c5e6302ff6",
+        "android_client_info": {
+          "package_name": "com.example.smartpos_erp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZtEoVk747HvV9qNOUNdprapJfGhE9KSY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:515468558659:android:90f8768a30b135f2302ff6",
+        "android_client_info": {
+          "package_name": "com.example.smartpos_erp_v2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBZtEoVk747HvV9qNOUNdprapJfGhE9KSY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
