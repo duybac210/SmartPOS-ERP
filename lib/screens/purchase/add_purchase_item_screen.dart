@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_model.dart';
 import '../../services/database_service.dart';
+import '../inventory/barcode_scanner_screen.dart';
 
 /// Màn hình thêm dòng hàng vào phiếu nhập.
-/// Cho phép chọn sản phẩm (có search), nhập qty và importPrice.
+/// Cho phép chọn sản phẩm (có search + quét barcode), nhập qty và importPrice.
 class AddPurchaseItemScreen extends StatefulWidget {
   final String receiptId;
 
@@ -32,6 +33,19 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
     _priceController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _scanBarcode() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _searchQuery = result;
+        _searchController.text = result;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -87,10 +101,15 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
               const SizedBox(height: 6),
               TextField(
                 controller: _searchController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Tìm theo tên hoặc SKU...',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'Quét barcode',
+                    onPressed: _scanBarcode,
+                  ),
+                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
                 onChanged: (v) => setState(() => _searchQuery = v.trim()),

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../models/product_model.dart';
 import '../../services/database_service.dart';
 import 'barcode_scanner_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
-  const AddProductScreen({super.key});
+  /// Khi [product] != null thì màn hình ở chế độ chỉnh sửa
+  final Product? product;
+
+  const AddProductScreen({super.key, this.product});
 
   @override
   State<AddProductScreen> createState() => _AddProductScreenState();
@@ -18,6 +22,28 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   final DatabaseService _db = DatabaseService();
 
+  bool get _isEditing => widget.product != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      nameController.text = widget.product!.name;
+      skuController.text = widget.product!.sku;
+      priceController.text = widget.product!.price.toString();
+      stockController.text = widget.product!.stock.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    skuController.dispose();
+    priceController.dispose();
+    stockController.dispose();
+    super.dispose();
+  }
+
   Future<void> _scanBarcode() async {
     final result = await Navigator.push<String>(
       context,
@@ -31,12 +57,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
   Future<void> _submitData() async {
     if (_formKey.currentState!.validate()) {
       try {
-        await _db.addProduct(
-          nameController.text,
-          skuController.text,
-          double.parse(priceController.text),
-          int.parse(stockController.text),
-        );
+        if (_isEditing) {
+          await _db.updateProduct(
+            widget.product!.id,
+            nameController.text,
+            skuController.text,
+            double.parse(priceController.text),
+          );
+        } else {
+          await _db.addProduct(
+            nameController.text,
+            skuController.text,
+            double.parse(priceController.text),
+            int.parse(stockController.text),
+          );
+        }
         if (mounted) Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(
@@ -49,7 +84,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Nhập Hàng Mới")),
+      appBar: AppBar(
+        title: Text(_isEditing ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -79,20 +116,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 keyboardType: TextInputType.number,
                 validator: (val) => val!.isEmpty ? "Vui lòng nhập giá" : null,
               ),
-              TextFormField(
-                controller: stockController,
-                decoration: const InputDecoration(labelText: "Số lượng nhập"),
-                keyboardType: TextInputType.number,
-                validator: (val) =>
-                    val!.isEmpty ? "Vui lòng nhập số lượng" : null,
-              ),
+              if (!_isEditing)
+                TextFormField(
+                  controller: stockController,
+                  decoration:
+                      const InputDecoration(labelText: "Số lượng nhập ban đầu"),
+                  keyboardType: TextInputType.number,
+                  validator: (val) =>
+                      val!.isEmpty ? "Vui lòng nhập số lượng" : null,
+                ),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _submitData,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
                 ),
-                child: const Text("Xác nhận nhập kho"),
+                child: Text(_isEditing ? "Lưu thay đổi" : "Xác nhận nhập kho"),
               ),
             ],
           ),

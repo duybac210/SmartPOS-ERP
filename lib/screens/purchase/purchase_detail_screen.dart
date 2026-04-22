@@ -9,6 +9,8 @@ import 'add_purchase_item_screen.dart';
 /// - Stream header phiếu (totals cập nhật realtime)
 /// - Stream danh sách items
 /// - Nút "Thêm hàng" và "Xác nhận nhập" (chỉ hiện khi draft)
+/// - Nút "Huỷ phiếu" (chỉ hiện khi draft)
+/// - Swipe-to-delete dòng hàng (chỉ khi draft)
 class PurchaseDetailScreen extends StatelessWidget {
   final String receiptId;
 
@@ -41,7 +43,7 @@ class PurchaseDetailScreen extends StatelessWidget {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
             actions: [
-              if (isDraft)
+              if (isDraft) ...[
                 IconButton(
                   icon: const Icon(Icons.add_shopping_cart),
                   tooltip: 'Thêm hàng',
@@ -53,6 +55,13 @@ class PurchaseDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.cancel_outlined),
+                  tooltip: 'Huỷ phiếu',
+                  onPressed: () =>
+                      _cancelReceipt(context, db, receipt),
+                ),
+              ],
             ],
           ),
           body: Column(
@@ -101,7 +110,7 @@ class PurchaseDetailScreen extends StatelessWidget {
                       itemCount: items.length,
                       itemBuilder: (_, i) {
                         final item = items[i];
-                        return Card(
+                        final tile = Card(
                           margin: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           child: ListTile(
@@ -111,7 +120,7 @@ class PurchaseDetailScreen extends StatelessWidget {
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                             subtitle: Text(
-                                'SKU: ${item.skuSnapshot} | SL: ${item.qty}'),
+                                'SKU: ${item.skuSnapshot} | SL: ${item.qty} | Giá: ${_fmt(item.importPrice)}đ'),
                             trailing: Text(
                               '${_fmt(item.lineTotal)}đ',
                               style: const TextStyle(
@@ -119,6 +128,60 @@ class PurchaseDetailScreen extends StatelessWidget {
                                   fontWeight: FontWeight.bold),
                             ),
                           ),
+                        );
+
+                        if (!isDraft) return tile;
+
+                        return Dismissible(
+                          key: ValueKey(item.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            color: Colors.red.shade100,
+                            child: const Icon(Icons.delete, color: Colors.red),
+                          ),
+                          confirmDismiss: (_) async {
+                            return await showDialog<bool>(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: const Text('Xoá dòng hàng'),
+                                content: Text(
+                                    'Xoá "${item.nameSnapshot}" khỏi phiếu?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(context, false),
+                                    child: const Text('Huỷ'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red),
+                                    onPressed: () =>
+                                        Navigator.pop(context, true),
+                                    child: const Text('Xoá',
+                                        style: TextStyle(color: Colors.white)),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          onDismissed: (_) async {
+                            try {
+                              await db.deletePurchaseItem(
+                                receiptId: receiptId,
+                                itemId: item.id,
+                                qty: item.qty,
+                                lineTotal: item.lineTotal,
+                              );
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Lỗi: $e')));
+                              }
+                            }
+                          },
+                          child: tile,
                         );
                       },
                     );
@@ -132,6 +195,49 @@ class PurchaseDetailScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _cancelReceipt(
+      BuildContext context, DatabaseService db, PurchaseReceipt receipt) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Huỷ phiếu nhập'),
+        content:
+            Text('Bạn có chắc muốn huỷ phiếu "${receipt.code}" không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Không'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Huỷ phiếu',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await db.cancelPurchaseReceipt(receipt.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã huỷ phiếu nhập'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Lỗi: $e')));
+        }
+      }
+    }
   }
 
   String _fmt(double v) => v

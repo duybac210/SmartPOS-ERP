@@ -1,11 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_model.dart';
+import '../../services/database_service.dart';
 import 'add_product_screen.dart';
 import '../purchase/purchase_list_screen.dart';
 
 class ProductListScreen extends StatelessWidget {
   const ProductListScreen({super.key});
+
+  Future<void> _deleteProduct(BuildContext context, Product product) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Xoá sản phẩm'),
+        content: Text(
+            'Bạn có chắc muốn xoá sản phẩm "${product.name}" không? Hành động này không thể hoàn tác.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Huỷ'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xoá', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await DatabaseService().deleteProduct(product.id);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Lỗi xoá sản phẩm: $e')));
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +96,15 @@ class ProductListScreen extends StatelessWidget {
           if (!snapshot.hasData)
             return const Center(child: CircularProgressIndicator());
 
+          if (snapshot.data!.docs.isEmpty) {
+            return const Center(
+              child: Text(
+                'Chưa có sản phẩm nào.\nNhấn + để thêm sản phẩm mới.',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+
           return ListView.builder(
             itemCount: snapshot.data!.docs.length,
             itemBuilder: (context, index) {
@@ -83,12 +125,34 @@ class ProductListScreen extends StatelessWidget {
                   subtitle: Text(
                     "SKU: ${product.sku} | Tồn kho: ${product.stock}",
                   ),
-                  trailing: Text(
-                    "${product.price}đ",
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "${product.price.toStringAsFixed(0)}đ",
+                        style: const TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blueAccent),
+                        tooltip: 'Chỉnh sửa',
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                AddProductScreen(product: product),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Xoá',
+                        onPressed: () =>
+                            _deleteProduct(context, product),
+                      ),
+                    ],
                   ),
                 ),
               );

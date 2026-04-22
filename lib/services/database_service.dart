@@ -20,6 +20,19 @@ class DatabaseService {
     });
   }
 
+  Future<void> updateProduct(
+      String id, String name, String sku, double price) async {
+    await productCollection.doc(id).update({
+      'name': name,
+      'sku': sku,
+      'price': price,
+    });
+  }
+
+  Future<void> deleteProduct(String id) async {
+    await productCollection.doc(id).delete();
+  }
+
   // ─── Purchase Receipts ───────────────────────────────────────────────────────
 
   /// Tạo phiếu nhập ở trạng thái draft
@@ -141,6 +154,50 @@ class DatabaseService {
     });
 
     await batch.commit();
+  }
+
+  /// Huỷ phiếu nhập (chỉ được huỷ khi đang ở trạng thái draft)
+  Future<void> cancelPurchaseReceipt(String receiptId) async {
+    final receiptRef = _receipts.doc(receiptId);
+    final snap = await receiptRef.get();
+    final status = snap['status'] as String? ?? 'draft';
+    if (status != 'draft') {
+      throw Exception('Chỉ có thể huỷ phiếu đang ở trạng thái nháp');
+    }
+    await receiptRef.update({
+      'status': ReceiptStatus.cancelled.value,
+      'updatedAt': Timestamp.now(),
+    });
+  }
+
+  /// Xoá một dòng hàng khỏi phiếu nhập + cập nhật tổng header
+  Future<void> deletePurchaseItem({
+    required String receiptId,
+    required String itemId,
+    required int qty,
+    required double lineTotal,
+  }) async {
+    final receiptRef = _receipts.doc(receiptId);
+    final itemRef = receiptRef.collection('items').doc(itemId);
+
+    await _db.runTransaction((txn) async {
+      final receiptDoc = await txn.get(receiptRef);
+      if (!receiptDoc.exists) throw Exception('Phiếu nhập không tồn tại');
+      if ((receiptDoc['status'] as String? ?? 'draft') != 'draft') {
+        throw Exception('Không thể xoá dòng hàng của phiếu đã xác nhận');
+      }
+
+      final currentQty = (receiptDoc['totalQty'] ?? 0) as int;
+      final currentAmount = (receiptDoc['totalAmount'] ?? 0.0) as num;
+
+      txn.delete(itemRef);
+      txn.update(receiptRef, {
+        'totalQty': (currentQty - qty).clamp(0, double.infinity).toInt(),
+        'totalAmount':
+            (currentAmount.toDouble() - lineTotal).clamp(0.0, double.infinity),
+        'updatedAt': Timestamp.now(),
+      });
+    });
   }
 }
 
