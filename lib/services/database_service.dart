@@ -13,6 +13,9 @@ class DatabaseService {
   final CollectionReference productCollection =
       FirebaseFirestore.instance.collection('products');
 
+  /// Số tiền chi tiêu (đ) để tích 1 điểm thưởng
+  static const int loyaltyPointsDivisor = 10000;
+
   CollectionReference get _receipts => _db.collection('purchase_receipts');
   CollectionReference get _suppliers => _db.collection('suppliers');
   CollectionReference get _categories => _db.collection('categories');
@@ -403,7 +406,8 @@ class DatabaseService {
     // Cập nhật khách hàng nếu có
     final customerId = orderSnap['customerId'] as String?;
     if (customerId != null) {
-      final pointsEarned = (finalAmount.toDouble() / 10000).floor();
+      final pointsEarned =
+          (finalAmount.toDouble() / loyaltyPointsDivisor).floor();
       batch.update(_customers.doc(customerId), {
         'totalSpent': FieldValue.increment(finalAmount.toDouble()),
         'points': FieldValue.increment(pointsEarned),
@@ -593,7 +597,7 @@ class DatabaseService {
       txn.update(receiptRef, {
         'totalQty': (currentQty - qty).clamp(0, currentQty),
         'totalAmount':
-            (currentAmount.toDouble() - lineTotal).clamp(0.0, currentAmount.toDouble()),
+            (currentAmount.toDouble() - lineTotal).clamp(0.0, double.infinity),
         'updatedAt': Timestamp.now(),
       });
     });

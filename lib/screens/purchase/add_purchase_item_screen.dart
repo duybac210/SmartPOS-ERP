@@ -4,7 +4,7 @@ import '../../models/product_model.dart';
 import '../../services/database_service.dart';
 
 /// Màn hình thêm dòng hàng vào phiếu nhập.
-/// Cho phép chọn sản phẩm (có search + quét barcode), nhập qty và importPrice.
+/// Cho phép chọn sản phẩm (có search), nhập qty và importPrice.
 class AddPurchaseItemScreen extends StatefulWidget {
   final String receiptId;
 
