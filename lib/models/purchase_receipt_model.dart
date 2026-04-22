@@ -29,11 +29,12 @@ extension ReceiptStatusX on ReceiptStatus {
 
 /// Phiếu nhập hàng (header)
 /// Firestore path: purchase_receipts/{receiptId}
-/// TODO: Thêm supplierId khi tích hợp quản lý nhà cung cấp
 class PurchaseReceipt {
   final String id;
   final String code;          // PN-YYYYMMDD-HHMMSS
   final ReceiptStatus status; // draft | confirmed | cancelled
+  final String? supplierId;
+  final String? supplierName;
   final String? note;
   final int totalQty;
   final double totalAmount;
@@ -45,6 +46,8 @@ class PurchaseReceipt {
     required this.id,
     required this.code,
     required this.status,
+    this.supplierId,
+    this.supplierName,
     this.note,
     required this.totalQty,
     required this.totalAmount,
@@ -58,6 +61,8 @@ class PurchaseReceipt {
       id: id,
       code: data['code'] ?? '',
       status: ReceiptStatusX.fromString(data['status'] ?? 'draft'),
+      supplierId: data['supplierId'] as String?,
+      supplierName: data['supplierName'] as String?,
       note: data['note'] as String?,
       totalQty: (data['totalQty'] ?? 0).toInt(),
       totalAmount: (data['totalAmount'] ?? 0).toDouble(),
@@ -71,6 +76,8 @@ class PurchaseReceipt {
     return {
       'code': code,
       'status': status.value,
+      if (supplierId != null) 'supplierId': supplierId,
+      if (supplierName != null) 'supplierName': supplierName,
       'note': note,
       'totalQty': totalQty,
       'totalAmount': totalAmount,

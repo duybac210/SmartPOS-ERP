@@ -79,6 +79,9 @@ class PurchaseDetailScreen extends StatelessWidget {
                           Text('Mã: ${receipt.code}',
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold)),
+                          if (receipt.supplierName != null &&
+                              receipt.supplierName!.isNotEmpty)
+                            Text('NCC: ${receipt.supplierName}'),
                           if (receipt.note != null && receipt.note!.isNotEmpty)
                             Text('Ghi chú: ${receipt.note}'),
                         ],

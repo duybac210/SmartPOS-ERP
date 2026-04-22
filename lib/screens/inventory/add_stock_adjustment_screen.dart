@@ -3,33 +3,38 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/product_model.dart';
 import '../../services/database_service.dart';
 
-/// Màn hình thêm dòng hàng vào phiếu nhập.
-/// Cho phép chọn sản phẩm (có search + quét barcode), nhập qty và importPrice.
-class AddPurchaseItemScreen extends StatefulWidget {
-  final String receiptId;
+const _reasons = [
+  'Kiểm kê',
+  'Hư hỏng / hết hạn',
+  'Điều chỉnh lỗi nhập',
+  'Quà tặng / dùng nội bộ',
+  'Khác',
+];
 
-  const AddPurchaseItemScreen({super.key, required this.receiptId});
+class AddStockAdjustmentScreen extends StatefulWidget {
+  const AddStockAdjustmentScreen({super.key});
 
   @override
-  State<AddPurchaseItemScreen> createState() => _AddPurchaseItemScreenState();
+  State<AddStockAdjustmentScreen> createState() =>
+      _AddStockAdjustmentScreenState();
 }
 
-class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
+class _AddStockAdjustmentScreenState extends State<AddStockAdjustmentScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _qtyController = TextEditingController();
-  final _priceController = TextEditingController();
+  final _deltaController = TextEditingController();
+  final _noteController = TextEditingController();
   final _searchController = TextEditingController();
-
-  final DatabaseService _db = DatabaseService();
 
   Product? _selectedProduct;
   String _searchQuery = '';
+  String _selectedReason = _reasons.first;
+  bool _isDecrease = false;
   bool _loading = false;
 
   @override
   void dispose() {
-    _qtyController.dispose();
-    _priceController.dispose();
+    _deltaController.dispose();
+    _noteController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -45,15 +50,23 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
 
     setState(() => _loading = true);
     try {
-      await _db.addPurchaseItem(
-        receiptId: widget.receiptId,
+      final delta = int.parse(_deltaController.text);
+      await DatabaseService().createStockAdjustment(
         productId: _selectedProduct!.id,
-        skuSnapshot: _selectedProduct!.sku,
-        nameSnapshot: _selectedProduct!.name,
-        qty: int.parse(_qtyController.text),
-        importPrice: double.parse(_priceController.text),
+        productNameSnapshot: _selectedProduct!.name,
+        delta: _isDecrease ? -delta : delta,
+        reason: _selectedReason,
+        note: _noteController.text.trim(),
       );
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Điều chỉnh tồn kho thành công'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -68,7 +81,7 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Thêm hàng vào phiếu'),
+        title: const Text('Điều Chỉnh Tồn Kho'),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,
       ),
@@ -79,11 +92,9 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Chọn sản phẩm ──────────────────────────────────────────────
-              const Text(
-                'Chọn sản phẩm',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              // Chọn sản phẩm
+              const Text('Chọn sản phẩm',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               TextField(
                 controller: _searchController,
@@ -93,7 +104,8 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
-                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                onChanged: (v) =>
+                    setState(() => _searchQuery = v.trim().toLowerCase()),
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -107,94 +119,119 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
                     }
                     final docs = snapshot.data!.docs.where((d) {
                       final data = d.data() as Map<String, dynamic>;
-                      final q = _searchQuery.toLowerCase();
-                      if (q.isEmpty) return true;
+                      if (_searchQuery.isEmpty) return true;
                       return (data['name'] as String? ?? '')
                               .toLowerCase()
-                              .contains(q) ||
+                              .contains(_searchQuery) ||
                           (data['sku'] as String? ?? '')
                               .toLowerCase()
-                              .contains(q);
+                              .contains(_searchQuery);
                     }).toList();
 
                     if (docs.isEmpty) {
                       return const Center(
                           child: Text('Không tìm thấy sản phẩm'));
                     }
-
                     return ListView.builder(
                       itemCount: docs.length,
                       itemBuilder: (_, i) {
-                        final d = docs[i];
                         final p = Product.fromMap(
-                            d.data() as Map<String, dynamic>, d.id);
+                            docs[i].data() as Map<String, dynamic>,
+                            docs[i].id);
                         final selected = _selectedProduct?.id == p.id;
                         return ListTile(
                           dense: true,
-                          tileColor:
-                              selected ? Colors.blue.shade50 : null,
+                          tileColor: selected ? Colors.blue.shade50 : null,
                           leading: Icon(Icons.inventory_2,
-                              color: selected
-                                  ? Colors.blue
-                                  : Colors.grey),
+                              color:
+                                  selected ? Colors.blue : Colors.grey),
                           title: Text(p.name),
                           subtitle: Text('SKU: ${p.sku} | Tồn: ${p.stock}'),
                           trailing: selected
                               ? const Icon(Icons.check_circle,
                                   color: Colors.blue)
                               : null,
-                          onTap: () => setState(() => _selectedProduct = p),
+                          onTap: () =>
+                              setState(() => _selectedProduct = p),
                         );
                       },
                     );
                   },
                 ),
               ),
-              // ── Số lượng & giá nhập ────────────────────────────────────────
               if (_selectedProduct != null) ...[
                 const Divider(),
-                Text(
-                  'Sản phẩm: ${_selectedProduct!.name}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                Text('Sản phẩm: ${_selectedProduct!.name}  (Tồn: ${_selectedProduct!.stock})',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                // Loại điều chỉnh
+                Row(
+                  children: [
+                    const Text('Loại: '),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Tăng'),
+                      selected: !_isDecrease,
+                      selectedColor: Colors.green.shade100,
+                      onSelected: (_) =>
+                          setState(() => _isDecrease = false),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Giảm'),
+                      selected: _isDecrease,
+                      selectedColor: Colors.red.shade100,
+                      onSelected: (_) =>
+                          setState(() => _isDecrease = true),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       child: TextFormField(
-                        controller: _qtyController,
+                        controller: _deltaController,
                         decoration: const InputDecoration(
-                          labelText: 'Số lượng',
+                          labelText: 'Số lượng điều chỉnh',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
                         keyboardType: TextInputType.number,
                         validator: (v) {
                           final n = int.tryParse(v ?? '');
-                          if (n == null || n <= 0) return 'Số lượng > 0';
+                          if (n == null || n <= 0) return 'Nhập số > 0';
                           return null;
                         },
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextFormField(
-                        controller: _priceController,
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedReason,
                         decoration: const InputDecoration(
-                          labelText: 'Giá nhập (đ)',
+                          labelText: 'Lý do',
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
-                        keyboardType:
-                            const TextInputType.numberWithOptions(decimal: true),
-                        validator: (v) {
-                          final n = double.tryParse(v ?? '');
-                          if (n == null || n < 0) return 'Giá >= 0';
-                          return null;
-                        },
+                        items: _reasons
+                            .map((r) => DropdownMenuItem(
+                                value: r, child: Text(r)))
+                            .toList(),
+                        onChanged: (v) =>
+                            setState(() => _selectedReason = v!),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: _noteController,
+                  decoration: const InputDecoration(
+                    labelText: 'Ghi chú',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -207,8 +244,8 @@ class _AddPurchaseItemScreenState extends State<AddPurchaseItemScreen> {
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.add),
-                    label: const Text('Thêm vào phiếu'),
+                        : const Icon(Icons.save),
+                    label: const Text('Xác nhận điều chỉnh'),
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(double.infinity, 48),
                       backgroundColor: Colors.blueAccent,

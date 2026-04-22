@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/purchase_receipt_model.dart';
+import '../../models/supplier_model.dart';
 import '../../services/database_service.dart';
 import 'purchase_detail_screen.dart';
 
@@ -19,42 +20,81 @@ class _PurchaseListScreenState extends State<PurchaseListScreen> {
   Future<void> _createNewReceipt() async {
     setState(() => _creating = true);
     try {
-      final noteController = TextEditingController();
-      final note = await showDialog<String>(
+      // Lấy danh sách nhà cung cấp
+      final suppliers = await _db.getSuppliers().first;
+
+      if (!mounted) return;
+
+      // Dialog chọn nhà cung cấp + ghi chú
+      final result = await showDialog<Map<String, dynamic>?>(
         context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Tạo phiếu nhập mới'),
-          content: TextField(
-            controller: noteController,
-            decoration: const InputDecoration(
-              hintText: 'Ghi chú (tuỳ chọn)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Huỷ'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, noteController.text),
-              child: const Text('Tạo phiếu'),
-            ),
-          ],
-        ),
+        builder: (_) {
+          final noteController = TextEditingController();
+          Supplier? selectedSupplier;
+          return StatefulBuilder(builder: (ctx, setStateDlg) {
+            return AlertDialog(
+              title: const Text('Tạo phiếu nhập mới'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<Supplier>(
+                    value: selectedSupplier,
+                    decoration: const InputDecoration(
+                      labelText: 'Nhà cung cấp (tuỳ chọn)',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<Supplier>(
+                          value: null,
+                          child: Text('-- Không chọn --')),
+                      ...suppliers.map((s) => DropdownMenuItem<Supplier>(
+                            value: s,
+                            child: Text(s.name),
+                          )),
+                    ],
+                    onChanged: (v) =>
+                        setStateDlg(() => selectedSupplier = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(
+                      hintText: 'Ghi chú (tuỳ chọn)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Huỷ'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, {
+                    'note': noteController.text,
+                    'supplier': selectedSupplier,
+                  }),
+                  child: const Text('Tạo phiếu'),
+                ),
+              ],
+            );
+          });
+        },
       );
 
-      if (note == null) {
-        // Người dùng huỷ dialog
-        return;
-      }
+      if (result == null) return;
+
+      final note = (result['note'] as String).trim();
+      final supplier = result['supplier'] as Supplier?;
 
       final receiptId = await _db.createPurchaseReceipt(
-        note: note.trim().isEmpty ? null : note.trim(),
+        note: note.isEmpty ? null : note,
+        supplierId: supplier?.id,
+        supplierName: supplier?.name,
       );
 
       if (mounted) {
-        // Mở ngay màn hình chi tiết phiếu vừa tạo
         await Navigator.push(
           context,
           MaterialPageRoute(
