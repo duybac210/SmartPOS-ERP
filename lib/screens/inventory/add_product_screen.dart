@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../models/product_model.dart';
+import '../../models/category_model.dart';
 import '../../services/database_service.dart';
-import 'barcode_scanner_screen.dart';
 
 class AddProductScreen extends StatefulWidget {
-  const AddProductScreen({super.key});
+  /// Khi [product] != null thì màn hình ở chế độ chỉnh sửa
+  final Product? product;
+
+  const AddProductScreen({super.key, this.product});
 
   @override
   State<AddProductScreen> createState() => _AddProductScreenState();
@@ -18,25 +22,53 @@ class _AddProductScreenState extends State<AddProductScreen> {
 
   final DatabaseService _db = DatabaseService();
 
-  Future<void> _scanBarcode() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
-    );
-    if (result != null && result.isNotEmpty) {
-      skuController.text = result;
+  bool get _isEditing => widget.product != null;
+
+  Category? _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      nameController.text = widget.product!.name;
+      skuController.text = widget.product!.sku;
+      priceController.text = widget.product!.price.toString();
+      // stock is not pre-filled – it cannot be edited here
     }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    skuController.dispose();
+    priceController.dispose();
+    stockController.dispose();
+    super.dispose();
   }
 
   Future<void> _submitData() async {
     if (_formKey.currentState!.validate()) {
       try {
-        await _db.addProduct(
-          nameController.text,
-          skuController.text,
-          double.parse(priceController.text),
-          int.parse(stockController.text),
-        );
+        if (_isEditing) {
+          await _db.updateProduct(
+            widget.product!.id,
+            nameController.text,
+            skuController.text,
+            double.parse(priceController.text),
+            categoryId: _selectedCategory?.id ?? widget.product!.categoryId,
+            categoryName:
+                _selectedCategory?.name ?? widget.product!.categoryName,
+          );
+        } else {
+          await _db.addProduct(
+            nameController.text,
+            skuController.text,
+            double.parse(priceController.text),
+            int.parse(stockController.text),
+            categoryId: _selectedCategory?.id,
+            categoryName: _selectedCategory?.name,
+          );
+        }
         if (mounted) Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(
@@ -49,7 +81,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Nhập Hàng Mới")),
+      appBar: AppBar(
+        title: Text(_isEditing ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"),
+        backgroundColor: Colors.blueAccent,
+        foregroundColor: Colors.white,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -63,13 +99,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
               ),
               TextFormField(
                 controller: skuController,
-                decoration: InputDecoration(
-                  labelText: "Mã SKU / Barcode",
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.qr_code_scanner),
-                    tooltip: 'Quét barcode',
-                    onPressed: _scanBarcode,
-                  ),
+                decoration: const InputDecoration(
+                  labelText: "Mã SKU",
                 ),
                 validator: (val) => val!.isEmpty ? "Vui lòng nhập SKU" : null,
               ),
@@ -79,20 +110,57 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 keyboardType: TextInputType.number,
                 validator: (val) => val!.isEmpty ? "Vui lòng nhập giá" : null,
               ),
-              TextFormField(
-                controller: stockController,
-                decoration: const InputDecoration(labelText: "Số lượng nhập"),
-                keyboardType: TextInputType.number,
-                validator: (val) =>
-                    val!.isEmpty ? "Vui lòng nhập số lượng" : null,
+              if (!_isEditing)
+                TextFormField(
+                  controller: stockController,
+                  decoration:
+                      const InputDecoration(labelText: "Số lượng nhập ban đầu"),
+                  keyboardType: TextInputType.number,
+                  validator: (val) =>
+                      val!.isEmpty ? "Vui lòng nhập số lượng" : null,
+                ),
+              const SizedBox(height: 12),
+              // ── Chọn danh mục ──────────────────────────────────────────
+              StreamBuilder<List<Category>>(
+                stream: _db.getCategories(),
+                builder: (context, snapshot) {
+                  final categories = snapshot.data ?? [];
+                  // Pre-select existing category when editing
+                  if (_isEditing &&
+                      _selectedCategory == null &&
+                      widget.product!.categoryId != null) {
+                    try {
+                      _selectedCategory = categories.firstWhere(
+                          (c) => c.id == widget.product!.categoryId);
+                    } catch (_) {}
+                  }
+                  return DropdownButtonFormField<Category>(
+                    value: _selectedCategory,
+                    decoration:
+                        const InputDecoration(labelText: 'Danh mục (tuỳ chọn)'),
+                    items: [
+                      const DropdownMenuItem<Category>(
+                        value: null,
+                        child: Text('-- Không có --'),
+                      ),
+                      ...categories.map((c) => DropdownMenuItem<Category>(
+                            value: c,
+                            child: Text(c.name),
+                          )),
+                    ],
+                    onChanged: (v) => setState(() => _selectedCategory = v),
+                  );
+                },
               ),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _submitData,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 50),
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
                 ),
-                child: const Text("Xác nhận nhập kho"),
+                child: Text(_isEditing ? "Lưu thay đổi" : "Xác nhận nhập kho"),
               ),
             ],
           ),
@@ -101,3 +169,4 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 }
+
