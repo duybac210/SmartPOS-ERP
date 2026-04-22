@@ -22,6 +22,7 @@ class DatabaseService {
 
   Future<void> updateProduct(
       String id, String name, String sku, double price) async {
+    // stock is intentionally excluded – it is only modified via purchase receipts
     await productCollection.doc(id).update({
       'name': name,
       'sku': sku,
@@ -192,9 +193,9 @@ class DatabaseService {
 
       txn.delete(itemRef);
       txn.update(receiptRef, {
-        'totalQty': (currentQty - qty).clamp(0, double.infinity).toInt(),
+        'totalQty': (currentQty - qty).clamp(0, currentQty),
         'totalAmount':
-            (currentAmount.toDouble() - lineTotal).clamp(0.0, double.infinity),
+            (currentAmount.toDouble() - lineTotal).clamp(0.0, currentAmount.toDouble()),
         'updatedAt': Timestamp.now(),
       });
     });

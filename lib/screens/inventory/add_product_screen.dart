@@ -31,7 +31,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       nameController.text = widget.product!.name;
       skuController.text = widget.product!.sku;
       priceController.text = widget.product!.price.toString();
-      stockController.text = widget.product!.stock.toString();
+      // stock is not pre-filled – it cannot be edited here
     }
   }
 
